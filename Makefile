@@ -31,8 +31,8 @@ format:
 check-format:
 	@${sourceEnv};black --check ${src}/ tests/
 
-requirements: 
-	@${sourceEnv};pip freeze > requirements.txt
+dev-requirements: 
+	@${sourceEnv};pip freeze > dev-requirements.txt
 
 watch:
 	@${sourceEnv};while sleep 0.5; do ls Degumin/**/*.py tests/*.py | entr -d make test; done
