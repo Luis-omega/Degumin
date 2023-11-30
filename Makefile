@@ -17,25 +17,25 @@ install: $(pythonSrc)
 	@${sourceEnv};pip install -e .
 
 uninstall:
-	@${sourceenv};pip uninstall ${src}
+	@${sourceEnv};pip uninstall ${src}
 
 run:
-	@${sourceenv};Degumin
+	@${sourceEnv};Degumin
 
 gen-stub:
-	@${sourceenv};stubgen ${src}
+	@${sourceEnv};stubgen ${src}
 
 format:
-	@${sourceenv};black ${src}/ tests/
+	@${sourceEnv};black ${src}/ tests/
 
 check-format:
-	@${sourceenv};black --check ${src}/ tests/
+	@${sourceEnv};black --check ${src}/ tests/
 
 requirements: 
-	@${sourceenv};pip freeze > requirements.txt
+	@${sourceEnv};pip freeze > requirements.txt
 
 watch:
-	@${sourceenv};while sleep 0.5; do ls Degumin/**/*.py tests/*.py | entr -d make test; done
+	@${sourceEnv};while sleep 0.5; do ls Degumin/**/*.py tests/*.py | entr -d make test; done
 
 clean_cache:
 	rm -rf build Degumin.egg-info .hypothesis .mypy_cache .pytest_cache .ropeproject
