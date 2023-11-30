@@ -20,13 +20,16 @@ uninstall:
 	@${sourceenv};pip uninstall ${src}
 
 run:
-	@${sourceenv};megukin
+	@${sourceenv};Degumin
 
 gen-stub:
 	@${sourceenv};stubgen ${src}
 
 format:
 	@${sourceenv};black ${src}/ tests/
+
+check-format:
+	@${sourceenv};black --check ${src}/ tests/
 
 requirements: 
 	@${sourceenv};pip freeze > requirements.txt
