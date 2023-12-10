@@ -1,0 +1,24 @@
+module Nat where
+
+data Refl : forall {X:Universe1} {Y:Universe1} (x:X) (y:Y) . Universe1 =
+  MakeRefl : forall {z:Universe1} . Refl z z;
+  ;
+
+replace : forall {X:Universe1} {x:X} {y:X} (P:forall (x:X) . Universe1) (proof: Refl x y)  (px:P x) . P y;
+replace P Refl px = px ;
+
+data Nat : Universe1 =
+  Z : Nat;
+  S : forall x:Nat . Nat ;
+  ;
+
+add : forall (n:Nat) (m:Nat) . Nat;
+add n m = 
+      case n of 
+        Z -> m;
+        S k -> add k (S m);
+      ;
+
+add_zero_left_is_zero: forall m:Nat . Refl (add Z m) m;
+add_zero_left_is_zero m2 = MakeRefl 
+    ;

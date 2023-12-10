@@ -1,0 +1,162 @@
+SPACES : / /+
+
+%ignore SPACES
+
+IGNORE_LINEBREAKS : /\n/
+
+%ignore IGNORE_LINEBREAKS
+
+// Python re doesn't match "\n" by defect when using `.`
+COMMENT_REST_OF_LINE: /--[^\n]*/
+
+%ignore COMMENT_REST_OF_LINE
+
+DIGIT:/[0-9]/
+
+NON_ZERO_DIGIT:/[1-9]/
+
+NON_ZERO_INT:NON_ZERO_DIGIT (DIGIT|"_")*
+
+ZERO_INT:/0+(0|_)*/
+
+INT: NON_ZERO_INT | ZERO_INT
+
+AT : "@"
+HOLE: "?" IDENTIFIER_CHARACTER*
+DEFAULT : "_"
+COLON:":"
+DOUBLE_COLON.2:"::"
+SEMI_COLON:";"
+EQUAL:"="
+LAMBDA:"\\"
+PIPE : "|"
+LET : "let"
+IN : "in"
+DOT : "."
+COMMA:","
+CASE.2:"case"
+OF.2:"of"
+FORALL.2:"forall"
+DATA.2:"data"
+TYPE.2:"type"
+NEWTYPE.2:"newtype"
+OPERATOR_KEYWORD.2:"operator"
+MODULE.2:"module"
+IMPORT.2:"import"
+WHERE.2:"where"
+TERM.2:"term"
+AS.2:"as"
+LEFT.2:"left"
+RIGHT.2:"right"
+NONE.2:"none"
+UNQUALIFIED.2:"unqualified"
+RIGHT_ARROW.2:"->"
+TYPE_TYPE.2:/Type/
+
+IDENTIFIER_CHARACTER:/[a-zA-Z_0-9]|'/
+IDENTIFIER: /[a-zA-Z]/ IDENTIFIER_CHARACTER*
+
+LPAREN:"("
+RPAREN:")"
+
+
+LBRACE:"{"
+RBRACE:"}"
+
+LBRACKET:"["
+RBRACKET:"]"
+
+parens{x} : LPAREN x RPAREN
+braces{x} : LBRACE x RBRACE
+
+module : module_header module_level*
+
+module_level : variable_definition | variable_declaration | data_definition
+
+module_header : MODULE IDENTIFIER WHERE
+
+variable_declaration : IDENTIFIER COLON term SEMI_COLON
+
+variable_definition : IDENTIFIER arguments EQUAL term SEMI_COLON
+  | IDENTIFIER EQUAL term SEMI_COLON -> variable_definition_no_arguments
+
+
+data_definition : DATA IDENTIFIER COLON term EQUAL constructors_definition SEMI_COLON
+
+constructors_definition : constructor_definition+
+
+constructor_definition : IDENTIFIER COLON term SEMI_COLON
+
+value : INT
+
+basic_type :  TYPE_TYPE
+
+hole : HOLE
+
+default_case : DEFAULT
+
+let : LET (definition SEMI_COLON)+ IN term
+
+definition : IDENTIFIER EQUAL term  -> definition_no_arguments
+  | IDENTIFIER arguments EQUAL term  -> definition_arguments
+  | IDENTIFIER COLON term EQUAL term -> definition_no_arguments_with_type
+  | IDENTIFIER arguments COLON term EQUAL term -> definition_arguments_and_type
+
+argument : variable
+  | hole
+  | default_case
+  | implicit_argument
+
+implicit_argument : braces{implicit_argument_helper} 
+
+implicit_argument_helper : IDENTIFIER EQUAL IDENTIFIER
+
+arguments : argument+
+
+
+lambda :  LAMBDA arguments RIGHT_ARROW term
+
+product : FORALL product_arguments DOT term
+  | FORALL product_argument DOT term
+
+product_arguments: product_argument_helper+
+
+product_argument_helper: parens{product_argument} -> explicit_product_argument_helper
+  | braces{product_argument} -> implicit_product_argument_helper
+lper: 
+
+product_argument: variable COLON term
+  | variable
+
+case : CASE term OF alternatives
+
+alternatives: alternative+
+
+alternative: pattern_match RIGHT_ARROW term SEMI_COLON
+
+pattern_match : default_case
+  | hole
+  | IDENTIFIER pattern_match*
+
+annotation : LPAREN term DOT term RPAREN
+
+variable : IDENTIFIER
+
+_atom_term: value
+  | basic_type
+  | hole
+  | variable
+  | lambda
+  | let
+  | product
+  | case
+  | annotation
+  | LPAREN term RPAREN
+
+application_item : _atom_term 
+  | implicit_argument
+
+application : _atom_term  -> application_single
+  | _atom_term  application_item+
+
+term:application
