@@ -1,0 +1,2 @@
+class DeguminError:
+    pass
