@@ -1,5 +1,5 @@
 """
-Defines the surface AST called SST (Sugared Syntax Tree)
+Defines the CST (Concrete Syntax Tree)
 """
 from __future__ import annotations
 
@@ -14,14 +14,14 @@ Info = TypeVar("Info")
 # Generic type variable.
 T = TypeVar("T")
 
-# Type variable holding the valid types that forms the SST
-SST_Type = Union["SingleIdentifier"]
+# Type variable holding the valid types that forms the CST
+CST_Type = Union["SingleIdentifier"]
 
 
 class MetaVisitor(Generic[Info, T], metaclass=ABCMeta):
     """
     This meta class MUST be updated every time that we
-    add a new node to the SST.
+    add a new node to the CST.
     """
 
     @abstractmethod
@@ -30,7 +30,7 @@ class MetaVisitor(Generic[Info, T], metaclass=ABCMeta):
 
 
 @dataclass(kw_only=True)
-class MetaSST(Generic[Info], metaclass=ABCMeta):
+class MetaCST(Generic[Info], metaclass=ABCMeta):
     info: Info = field(compare=False)
 
     @abstractmethod
@@ -45,7 +45,7 @@ class SingleIdentifier:
     The __init__ method WON'T check for correctness of the identifier, please
     use `make_SingleIdentifier` instead.
 
-    This isn't part of SST and is not registered in the MetaVisitor,
+    This isn't part of CST and is not registered in the MetaVisitor,
     the reason is that having the input `a.b.c.d` it doesn't really
     makes sense split he information to provide information for
     `a`, `b`, `c` and `d`.
@@ -74,7 +74,7 @@ def make_SingleIdentifier(maybe_identifier: str) -> Optional[SingleIdentifier]:
 
 
 @dataclass
-class Identifier(MetaSST[Info]):
+class Identifier(MetaCST[Info]):
     """
     This class represent a non empty list of SingleIdentifier[Info].
     The representation of  `A.B.C` is
