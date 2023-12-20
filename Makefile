@@ -1,5 +1,5 @@
 
-.PHONY: requirements run
+.PHONY: requirements run check-format format
 
 sourceEnv=source .env/bin/activate
 
@@ -30,6 +30,9 @@ format:
 
 check-format:
 	@${sourceEnv};black --check ${src}/ tests/
+
+mypy:
+	@${sourceEnv};mypy ${src}/ tests/
 
 dev-requirements: 
 	@${sourceEnv};pip freeze > dev-requirements.txt

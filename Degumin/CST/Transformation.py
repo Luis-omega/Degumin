@@ -2,7 +2,8 @@ from typing import Generic, NewType, Optional, TypeVar, Union
 
 from lark import Token, Transformer, Tree, v_args
 
-from Degumin.Core import (
+from Degumin.Common.File import Range, mergeRanges, token2Range
+from Degumin.Core.Core import (
     Constructor,
     DataType,
     FreeVariable,
@@ -15,7 +16,6 @@ from Degumin.Core import (
     VariableDeclaration,
     VariableDefinition,
 )
-from Degumin.File import Range, mergeRanges, token2Range
 
 T = TypeVar("T")
 T2 = TypeVar("T2")

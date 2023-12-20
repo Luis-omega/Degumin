@@ -111,8 +111,4 @@ def test_simple_test():
     assert "1 + hi" == pretty(Add(Int(1, None), Var("hi", None), None))
 
 
-def test_some():
-    assert 2 == Some2(2, some1=1)
-
-
 test_simple_test()

@@ -57,8 +57,12 @@ namespaces = false
 line-length = 80
 target-version = ['py311']
 
+[tool.pylsp_black]
+line-length = 80
+target-version = ['py311']
+
 [tool.mypy]
-pretty=true
+#pretty=true
 check_untyped_defs=true
 warn_no_return=true
 warn_return_any=true

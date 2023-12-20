@@ -1,6 +1,6 @@
 import pytest
 
-from Degumin.SST import (
+from Degumin.CST.CST import (
     Identifier,
     SingleIdentifier,
     make_Identifier,

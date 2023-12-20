@@ -15,7 +15,7 @@ Info = TypeVar("Info")
 T = TypeVar("T")
 
 # Type variable holding the valid types that forms the SST
-SST_Type = Union["SingleIdentifier[Info]"]
+SST_Type = Union["SingleIdentifier"]
 
 
 class MetaVisitor(Generic[Info, T], metaclass=ABCMeta):
