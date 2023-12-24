@@ -35,8 +35,8 @@ dependencies = [
 name = "Degumin"
 version = "0.0.1"
 
-#[project.scripts]
-#megukin = "Degumin.Compiler.Main:main"
+[project.scripts]
+degumin = "Degumin.Compiler.Main:main"
 
 [tool.pytest.ini_options]
 addopts = [

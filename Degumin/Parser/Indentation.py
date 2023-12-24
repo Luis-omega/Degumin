@@ -1,18 +1,23 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Iterable, Optional
 
-from lark import Token
+from Degumin.Common.Error import DeguminError
+from Degumin.Parser.Token import Token
 
 
-class IndenterException(BaseException):
+class IndenterError(DeguminError):
     pass
 
 
 @dataclass
-class MissIndented(IndenterException):
+class MissIndented(IndenterError):
     token: Token
     expected_indentation_level: int
     maybe_previous_indentation_token: Optional[Token]
+
+
+def make_token_error_at(token: Token, err: IndenterError):
+    pass
 
 
 def handle_let(
@@ -38,3 +43,7 @@ def handle_let(
             pass
 
     return []
+
+
+def segment_file(text: str) -> Iterable[Token]:
+    pass

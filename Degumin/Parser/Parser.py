@@ -1,37 +1,49 @@
 from dataclasses import dataclass
-from typing import Optional
+from pathlib import Path
+from typing import Iterable, Optional
 
-from lark import Lark, UnexpectedInput
+from lark import (
+    GrammarError,
+    Lark,
+    Tree,
+    UnexpectedCharacters,
+    UnexpectedInput,
+    UnexpectedToken,
+)
+
+from Degumin.Common.Error import DeguminError
+from Degumin.Common.File import FileInfo
+from Degumin.Parser.Token import Token
 
 
-class ParserStageError:
+class ParseError(DeguminError):
     pass
 
 
 # We couldn't open and read the grammar file
-class LoadGrammarError(ParserStageError):
+class LoadGrammarError(ParseError):
     pass
 
 
 # Lark can't parse the grammar
 @dataclass
-class LarkLoadError(ParserStageError):
+class LarkLoadError(ParseError):
     msg: str
 
 
 @dataclass
-class FileLoadError(ParserStageError):
-    info: int
+class FileLoadError(ParseError):
+    info: FileInfo
 
 
 def load_grammar(
-    debug: Optional[bool] = None, start_symbols: Optional[list[str]] = ["top"]
+    debug: Optional[bool] = None, start_symbols: Optional[list[str]] = ["start"]
 ) -> LoadGrammarError | LarkLoadError | Lark:
     if debug is None:
         debug = False
     grammarPath = "Degumin/Grammar.lark"
     if start_symbols is None:
-        start_symbols = ["top"]
+        start_symbols = ["start"]
     try:
         with open(grammarPath, "r") as grammarFile:
             grammar = grammarFile.read()
@@ -55,32 +67,32 @@ def load_grammar(
     return parser
 
 
-def main(test_file_name: Optional[str] = None) -> None:
-    lark = load_grammar(False, ["module"])
-    if isinstance(lark, LoadGrammarError):
-        print("Can't open or read grammar file")
-        return None
-    elif isinstance(lark, LarkLoadError):
-        print("Problem while processing the grammar")
-        print(lark.msg)
-        return None
-    if test_file_name is None:
-        test_file_name = "grammar_test"
+def parse_string(
+    lark: Lark, info: FileInfo, text: str
+) -> list[Tree[Token] | ParseError]:
+    results: list[Tree[Token] | ParseError] = []
+    # TODO: refactor this to return the list
     try:
-        with open(test_file_name, "r") as test_file:
-            to_parser = test_file.read()
+        result = lark.parse(text)
+        return result  # type:ignore
+    except UnexpectedInput as uinput:
+        return make_parse_error_from_lark_error(uinput, text, info)
+
+
+def parse_file(
+    path: Path, lark: Lark, debug: bool
+) -> FileLoadError | tuple[FileInfo, ParseError | Tree[Token]]:
+    info = FileInfo(path.name, path)
+    try:
+        with open(path, "r") as file:
+            content = file.read()
+            maybe_tree = parse_string(lark, info, content)
+            return (info, maybe_tree)
     except OSError:
-        print(f"Can't open test_file {test_file_name}")
-        return None
-    try:
-        result = lark.parse(to_parser)
-    except UnexpectedInput as e:
-        context = e.get_context(to_parser)
-        print(e)
-        print(context)
-        return None
-    print(result.pretty())
-    return None
+        return FileLoadError(info)
 
 
-main()
+def make_parse_error_from_lark_error(
+    err: UnexpectedInput, text: str, info: FileInfo
+) -> ParseError:
+    pass

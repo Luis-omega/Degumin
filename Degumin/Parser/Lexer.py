@@ -5,9 +5,118 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Generic, Optional, Type, TypeVar, Union
 
+from Degumin.Common.Error import DeguminError
+from Degumin.Common.File import Range
+
 T = TypeVar("T")
 
 Chunk_Type = Union["LineBreak", "LineComment", "MultiLineComment", "WordStart"]
+
+
+class SegmenterError(ABC, DeguminError):
+    @abstractmethod
+    def visit(self, visitor: SegmenterErrorVisitor[T]) -> T:
+        pass
+
+
+class SegmenterErrorVisitor(ABC, Generic[T]):
+    @abstractmethod
+    def visit_unexpected_character(
+        self, e: UnexpectedCharacterAtIndentationZero
+    ) -> T:
+        pass
+
+    @abstractmethod
+    def visit_missed_block_coment_close(self, e: MissedBlockCommentClose) -> T:
+        pass
+
+
+@dataclass
+class UnexpectedCharacterAtIndentationZero(SegmenterError):
+    char: str
+    line: int
+
+    def visit(self, visitor: SegmenterErrorVisitor[T]) -> T:
+        return visitor.visit_unexpected_character(self)
+
+
+@dataclass
+class MissedBlockCommentClose(SegmenterError):
+    line: int
+    column: int
+    position: int
+
+    def visit(self, visitor: SegmenterErrorVisitor[T]) -> T:
+        return visitor.visit_missed_block_coment_close(self)
+
+
+@dataclass
+class State:
+    text: str
+    position: int
+    line: int
+    column: int
+
+    def advance_assuming_text(self, text: str) -> Range:
+        old_position = self.position
+        old_line = self.line
+        old_column = self.column
+        self.position = old_position + len(text)
+        self.line = old_line + text.count("\n")
+        self.column = len(text[::-1].split("\n", maxsplit=1)[0])
+        return Range(
+            line_start=old_line,
+            line_end=self.line,
+            column_start=old_column,
+            column_end=self.column,
+            position_start=old_position,
+            position_end=self.position,
+        )
+
+    def match(self, pattern: re.Pattern) -> Optional[tuple[str, Range]]:
+        result = pattern.match(self.text[self.position :])
+        if result is None:
+            return None
+        matched = self.text[self.position : self.position + result.end()]
+        _range = self.advance_assuming_text(matched)
+        return (matched, _range)
+
+    def start_match(self, pattern=str) -> Optional[Range]:
+        """
+        Pattern shouldn't contain "\n"
+        """
+        if pattern.count("\n") > 0:
+            return None
+        text = self.get_remaining_text()
+        real_pattern = r"\n" + pattern
+        print(
+            "starts with",
+            real_pattern.replace("\n", "\\n"),
+            "?",
+            text.replace("\n", "\\n"),
+            text.startswith(real_pattern),
+        )
+        if re.match(real_pattern, (text)):
+            print("matched")
+            _range = self.advance_assuming_text("\n")
+            return _range
+        return None
+
+    def get_remaining_text(self) -> str:
+        return self.text[self.position :]
+
+    def advance_to_next_control_point(self) -> None:
+        text = self.get_remaining_text()
+        match_result = indented_line_start_regex.search(text)
+        print("SEARCH result = ", match_result)
+        if match_result is None:
+            self.advance_assuming_text(text)
+        else:
+            new_text = text[match_result.end() :]
+            self.advance_assuming_text(new_text)
+
+    def is_at_end(self) -> bool:
+        return len(self.text) <= self.position
 
 
 class CodeChunkVisitor(ABC, Generic[T]):
@@ -16,7 +125,7 @@ class CodeChunkVisitor(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    def visit_LineComment(self, commet: LineComment) -> T:
+    def visit_LineComment(self, comment: LineComment) -> T:
         pass
 
     @abstractmethod
@@ -30,11 +139,10 @@ class CodeChunkVisitor(ABC, Generic[T]):
 
 @dataclass(kw_only=True)
 class CodeChunk(ABC):
-    line_start: int
-    line_end: int
+    _range: Range
 
     @abstractmethod
-    def traverse(self, visitor: CodeChunkVisitor[T]) -> T:
+    def visit(self, visitor: CodeChunkVisitor[T]) -> T:
         pass
 
 
@@ -58,8 +166,8 @@ class NonLineBreakString:
 
 
 @dataclass
-class LineBreak:
-    def traverse(self, visitor: CodeChunkVisitor[T]) -> T:
+class LineBreak(CodeChunk):
+    def visit(self, visitor: CodeChunkVisitor[T]) -> T:
         return visitor.visit_LineBreak(self)
 
 
@@ -67,7 +175,7 @@ class LineBreak:
 class LineComment(CodeChunk):
     comment: NonLineBreakString
 
-    def traverse(self, visitor: CodeChunkVisitor[T]) -> T:
+    def visit(self, visitor: CodeChunkVisitor[T]) -> T:
         return visitor.visit_LineComment(self)
 
 
@@ -76,7 +184,7 @@ class MultiLineComment(CodeChunk):
     comment: list[NonLineBreakString | LineBreak]
     number_of_hyphens: int
 
-    def traverse(self, visitor: CodeChunkVisitor[T]) -> T:
+    def visit(self, visitor: CodeChunkVisitor[T]) -> T:
         return visitor.visit_MultiLineComment(self)
 
 
@@ -84,20 +192,14 @@ class MultiLineComment(CodeChunk):
 class WordStart(CodeChunk):
     chunk: str
 
-    def traverse(self, visitor: CodeChunkVisitor[T]) -> T:
+    def visit(self, visitor: CodeChunkVisitor[T]) -> T:
         return visitor.visit_WordStart(self)
-
-
-@dataclass
-class UnexpectedCharacterAtIndentationZero:
-    char: str
-    line: int
 
 
 line_comment_inner = r"--.*"
 line_comment_inner_regex = re.compile(line_comment_inner)
 line_comment_regex = re.compile(r"\n" + line_comment_inner)
-line_break_regex = re.compile(r" *\n")
+line_break_regex = re.compile(r" *\n *")
 indented_line_start_regex = re.compile(r"\n[^ \n]")
 
 multi_line_comment_start_inner = r"{-+"
@@ -108,191 +210,184 @@ multi_line_comment_start = r"\n" + multi_line_comment_start_inner
 multi_line_comment_start_regex = re.compile(multi_line_comment_start)
 
 
-world_start_inner = r"\w(.|\n)*(?=\n\w|\n--|\n\(|\n\{-|)"
+world_start_inner = r"\w(.|\n)*(?=\n\w|\n--|\n\(|\n\{-|$)"
 world_start_inner_regex = re.compile(world_start_inner)
 
 
-def match_line_comment_start(
-    text: str, line_number: int
-) -> Optional[tuple[str, int, LineComment]]:
-    match = line_comment_inner_regex.match(text)
-    if match is not None:
-        chunk_text = text[: match.end()]
-        new_line_number = line_number + chunk_text.count("\n")
-        # triming the `--`
-        non_line_break = NonLineBreakString(chunk_text[2:])
-        result = LineComment(
-            non_line_break, line_start=new_line_number, line_end=line_number
-        )
-        text = text[match.end() :]
-        return (text, new_line_number, result)
-    return None
-
-
-def match_line_comment(
-    text: str, line_number: int
-) -> Optional[tuple[str, int, LineComment]]:
-    match = line_comment_regex.match(text)
-    if match is not None:
-        chunk_text = text[: match.end()]
-        new_line_number = line_number + chunk_text.count("\n")
-        # triming the `\n--`
-        non_line_break = NonLineBreakString(chunk_text[3:])
-        result = LineComment(
-            non_line_break, line_start=new_line_number, line_end=new_line_number
-        )
-        text = text[match.end() :]
-        return (text, new_line_number, result)
-    return None
-
-
-def match_line_break(
-    text: str, line_number: int
-) -> Optional[tuple[str, int, LineBreak]]:
-    match = line_break_regex.match(text)
-    if match is not None:
-        new_line_number = line_number + 1
-        result = LineBreak()
-        text = text[match.end() :]
-        return (text, new_line_number, result)
-    return None
-
-
-def advance_to_next_contro_point(
-    text: str, line_number: int
-) -> tuple[str, int]:
-    match_result = indented_line_start_regex.search(text)
-    if match_result is not None:
-        start = text[: match_result.start()]
-        break_lines = start.count("\n")
-        end = text[match_result.start() :]
-        return (end, break_lines + line_number)
-    else:
-        break_lines = text.count("\n")
-        return ("", break_lines + line_number)
-
-
-def match_multi_line_comment_start(
-    text: str, line_number: int
-) -> Optional[tuple[str, int, MultiLineComment]]:
-    match = multi_line_comment_start_inner_regex.match(text)
-    if match is None:
+def match_line_comment_inner(state: State) -> Optional[LineComment]:
+    matched = state.match(line_comment_inner_regex)
+    if matched is None:
         return None
-    number_of_hyphens = match.end() - 1
+    text, _range = matched
+    # we must trim the -- of the comment
+    return LineComment(NonLineBreakString(text[2:]), _range=_range)
+
+
+def match_line_comment(state: State) -> Optional[LineComment]:
+    start_range = state.start_match("--")
+    if start_range is None:
+        return None
+    return match_line_comment_inner(state)
+
+
+def match_line_break(state: State) -> Optional[LineBreak]:
+    matched = state.match(line_break_regex)
+    if matched is None:
+        return None
+    _, _range = matched
+    return LineBreak(_range=_range)
+
+
+def match_multi_line_comment_inner(
+    state: State,
+) -> Optional[MultiLineComment | MissedBlockCommentClose]:
+    text = state.get_remaining_text()
+    matched = re.match("{-+", text)
+    if matched is None:
+        return None
+    number_of_hyphens = matched.end() - 1
     repated_hyphens = number_of_hyphens * r"-"
     new_regex = re.compile(
         r"{" + repated_hyphens + r"(.|\n)*\n" + repated_hyphens + r"}"
     )
-    full_match = new_regex.match(text)
-    if full_match is None:
-        # TODO:  modify the signatures of the `match` functions to handle this.
-        return None
-    # The 1 here is to remove the `\n` in the end `\n---}`
-    match_result = text[match.end() : full_match.end() - match.end() - 1]
+    real_matched = state.match(new_regex)
+    if real_matched is None:
+        return MissedBlockCommentClose(state.line, state.column, state.position)
+    match_result, match_range = real_matched
     line_counter = 0
     result: list[LineBreak | NonLineBreakString] = []
-    for item in match_result.split("\n"):
+    for item in match_result[matched.end() : -matched.end() - 1].split("\n"):
         if item:
             if item.lstrip():
-                result.append(NonLineBreakString(item))
+                result.append(NonLineBreakString(item.rstrip()))
             else:
-                result.append(LineBreak())
+                # TODO: put the real info here
+                result.append(LineBreak(_range=Range(0, 0, 0, 0, 0, 0)))
         else:
-            result.append(LineBreak())
+            # TODO: put the real info here
+            result.append(LineBreak(_range=Range(0, 0, 0, 0, 0, 0)))
         line_counter += 1
-
-    text = text[full_match.end() :]
-    new_line_number = line_number + line_counter
-    return (
-        text,
-        new_line_number,
-        MultiLineComment(
-            result,
-            number_of_hyphens,
-            line_start=line_number,
-            line_end=new_line_number,
-        ),
-    )
+    return MultiLineComment(result, number_of_hyphens, _range=match_range)
 
 
 def match_multi_line_comment(
-    text: str, line_number: int
-) -> Optional[tuple[str, int, MultiLineComment]]:
-    match = multi_line_comment_start_regex.match(text)
-    if match is None:
+    state: State,
+) -> Optional[MultiLineComment | MissedBlockCommentClose]:
+    start_range = state.start_match("{-+")
+    if start_range is None:
         return None
-    # We matched for "\n{-+", so, we are discarding the `\n`
-    return match_multi_line_comment_start(text[1:], line_number + 1)
+    return match_multi_line_comment_inner(state)
 
 
-def match_world_start(
-    text: str, line_number: int
-) -> Optional[tuple[str, int, WordStart]]:
-    match = world_start_inner_regex.match(text)
-    if match is None:
+def match_word_inner(state: State) -> Optional[WordStart]:
+    matched = state.match(world_start_inner_regex)
+    if matched is None:
         return None
-    chunk = text[: match.end()]
-    print("Chunk: ", chunk)
-    lines = chunk.count("\n")
-    new_line_number = lines + line_number
-    new_text = text[match.end() :]
-    return (
-        new_text,
-        new_line_number,
-        WordStart(chunk, line_start=line_number, line_end=new_line_number),
-    )
+    text, _range = matched
+    return WordStart(text, _range=_range)
+
+
+def match_word(state: State) -> Optional[WordStart]:
+    start_range = state.start_match(r"\w")
+    if start_range is None:
+        return None
+    return match_word_inner(state)
 
 
 def split_by_indentation(
     text: str,
-) -> tuple[list[Chunk_Type], list[UnexpectedCharacterAtIndentationZero]]:
+) -> tuple[list[Chunk_Type], list[SegmenterError]]:
     """Every time we find text at the begining of a line, we know
     we found a new region of things to parse, this function
     split a text in all of this regions.
     """
     if len(text) == 0:
         return ([], [])
+    state = State(text, 0, 0, 0)
 
-    line_number: int = 0
     out: list[Chunk_Type] = []
-    errors: list[UnexpectedCharacterAtIndentationZero] = []
+    errors: list[SegmenterError] = []
     if text[0] != "\n":
         for f in [
-            match_line_comment_start,
-            match_multi_line_comment_start,
-            match_world_start,
+            match_line_comment_inner,
+            match_word_inner,
+            match_multi_line_comment_inner,
             match_line_break,
         ]:
-            match_result = f(text, line_number)
+            match_result = f(state)
             if match_result is not None:
-                new_text, new_line, result = match_result
-                text = new_text
-                line_number = new_line
-                out.append(result)
-                break
+                if isinstance(match_result, CodeChunk):
+                    print(
+                        "FOUND: ",
+                        match_result,
+                        f,
+                        state.get_remaining_text().replace("\n", "\\n"),
+                    )
+                    out.append(match_result)
+                    break
+                else:
+                    print("matched {- but not matched -}")
+                    errors.append(match_result)
+                    state.advance_to_next_control_point()
         if len(out) == 0:
             errors.append(
-                UnexpectedCharacterAtIndentationZero(text[0], line_number)
+                UnexpectedCharacterAtIndentationZero(state.text[0], state.line)
             )
-            text, line_number = advance_to_next_contro_point(text, line_number)
-    while text:
+            state.advance_to_next_control_point()
+    while not state.is_at_end():
         found_one = False
         for f in [
             match_line_comment,
+            match_word,
             match_multi_line_comment,
             match_line_break,
         ]:
-            match_result = f(text, line_number)
+            match_result = f(state)
             if match_result is not None:
-                new_text, new_line, result = match_result
-                text = new_text
-                line_number = new_line
-                out.append(result)
-                found_one = True
-                break
+                if isinstance(match_result, CodeChunk):
+                    print(
+                        "FOUND: ",
+                        match_result,
+                        f,
+                        state.get_remaining_text().replace("\n", "\\n"),
+                    )
+                    if not isinstance(match_result, LineBreak):
+                        r = match_result._range
+                        _range = Range(
+                            r.line_end,
+                            r.line_end,
+                            0,
+                            0,
+                            r.position_end,
+                            r.position_end,
+                        )
+                        new_line_break = LineBreak(_range=_range)
+                        # print("injecting line break")
+                        out.append(new_line_break)
+                    out.append(match_result)
+                    found_one = True
+                    break
+                else:
+                    _range = Range(
+                        match_result.line,
+                        match_result.line,
+                        0,
+                        0,
+                        match_result.position,
+                        match_result.position,
+                    )
+                    new_line_break = LineBreak(_range=_range)
+                    # print("injecting line break")
+                    out.append(new_line_break)
+                    errors.append(match_result)
+                    state.advance_to_next_control_point()
+                    found_one = True
+                    break
+
         if not found_one:
+            print("NOT FOUND, advancing")
             errors.append(
-                UnexpectedCharacterAtIndentationZero(text[0], line_number)
+                UnexpectedCharacterAtIndentationZero(state.text[0], state.line)
             )
-            text, line_number = advance_to_next_contro_point(text, line_number)
+            state.advance_to_next_control_point()
     return (out, errors)

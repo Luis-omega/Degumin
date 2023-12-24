@@ -19,7 +19,7 @@ parts of the chain with improved version.
 
 We also want to focus on user experience, this means that the compiler design 
 must help to produce a `code formatter`, a `Documentation generator`, and a
-`LSP`. Yes, this is ambitious but I think that those are core tools in
+`LSP`. Yes, this is ambitious, but I think that those are core tools in
 modern languages together with `package manager` (and we also aim to support
 at the compiler level the idea of a `package`).
 
@@ -35,10 +35,10 @@ case n of
  ...
 ```
 
-We want to discover as much errors as possible while parsing, for this
+We want to discover as many errors as possible while parsing, for this
 we introduce a recovery strategy as follows:
 
-- The only valid things a indentation 0 are :
+- The only valid things at indentation 0 are :
     + Keywords at module declaration (`module`, `data`, `class`, ...)
     + Comment blocks `{-+.*-+}`
     + Line comments 
@@ -47,14 +47,14 @@ we introduce a recovery strategy as follows:
     + Operator declaration
     + Operator definition 
 - We would split the file in segments and pass to the lexer2/parser only one 
-  segment at a time. If a 
-- At lexer2 if we find a unexpected character, we skip the rest of the segment
+  segment at a time. 
+- At lexer2 if we find an unexpected character, we skip the rest of the segment
     and emit a `UnexpectedCharacter` token.
 - At token injection we add corresponding indentation tokens, in case of 
     error we would emit a `IndentationError` or subclass of them and 
     stop processing the segment.
-- The parser wouldn't distinguish between a unexpected regular token and 
-    a error token, it would fail if find any of those, but we would 
+- The parser wouldn't distinguish between an unexpected regular token and 
+    an error token, it would fail if it found any of those, but we would 
     handle our unexpected tokens in a special way.
 
 ## Formatter
@@ -71,7 +71,7 @@ so we don't have to handle code like:
 f n = some function {-- coment here --} other args
 ```
 
-instead it should be wrote like:
+instead it should be written like:
 
 ```haskell
 f n = some function -- coment here
@@ -80,15 +80,15 @@ f n = some function -- coment here
 
 Or variants of it.
 
-We don't admit those kind of comments as them increase the time of 
+We don't admit those kinds of comments as them increase the time of 
 search for an optimal representation of the formatted code.
 
-Additionally the formatter should comply with other properties.
+Additionally, the formatter should comply with other properties.
 
 ### Respect any line break
 
 Sometimes users use line break in code with intention, maybe they
-want to signal a grouping of code or maybe they are formatting code
+want to signal a grouping of code, or maybe they are formatting code
 to follow a particular visual pattern like in:
 
 ```haskell
@@ -114,7 +114,7 @@ The documentation generator would need communication of the results of the
 type checker.
 
 
-## Indentation aproach.
+## Indentation approach.
 
 Disclaimer: This would my 6th attempt at it, past two times I did it right but
 was limited, this time I want to do it better.
@@ -146,4 +146,4 @@ And a main function:
 def token_injection(text:Token,last_level:IndentationLevel)->Iterable[Token]:
 ```
 
-This function would be used inside the other ones to handle the internal the UnNeeded tokens.
+This function would be used inside the other ones to handle the internal the `UnNeeded` tokens.
